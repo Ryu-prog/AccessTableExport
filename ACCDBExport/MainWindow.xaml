@@ -1,0 +1,57 @@
+﻿<Window x:Class="AccessTableExport.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:AccessTableExport"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="650" Width="350">
+    
+    <Grid>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+            <StackPanel  VerticalAlignment ="Stretch">
+
+                <StackPanel x:Name="spDBPass">
+                    <TextBlock x:Name="tbxDBPass" HorizontalAlignment="Center" Margin="0,10,0,0" TextWrapping="Wrap" Text="コピー元データベースのパスワード" VerticalAlignment="Top" Visibility="Visible"/>
+                    <PasswordBox x:Name="pbDBPass" Width="120" PasswordChar="●" Visibility="Visible"/>
+                </StackPanel>
+
+                <StackPanel x:Name="spDBSelect">
+                    <TextBlock x:Name="tbkDBSelect" HorizontalAlignment="Center" Margin="0,10,0,0" TextWrapping="Wrap" Text="コピー元データベースファイルパス" VerticalAlignment="Top"/>
+                    <TextBox x:Name="tbxDBFilePath" HorizontalAlignment="Center" TextWrapping="NoWrap" Text="" VerticalAlignment="Top" Width="324" IsEnabled="False" />
+                    <Button x:Name="DBSelectButton" Content="DB選択" HorizontalAlignment="Center" VerticalAlignment="Top" Click="DBSelectButton_Click"/>
+                </StackPanel>
+
+                <StackPanel x:Name="sptblTXTSelect">
+                    <TextBlock x:Name="tblTXTSelect" HorizontalAlignment="Center" Margin="0,10,0,0" TextWrapping="Wrap" Text="コピー対象テーブルTXTパス（入力無しでも実行可能）" VerticalAlignment="Top"/>
+                    <TextBox x:Name="tblTXTPath" HorizontalAlignment="Center" TextWrapping="NoWrap" Text="" VerticalAlignment="Top" Width="324" IsEnabled="False" />
+                    <Button x:Name="tblTXTSelectButton" Content="テキストファイル選択" HorizontalAlignment="Center" VerticalAlignment="Top" Click="TXTSelectButton_Click"/>
+                    <Button x:Name="TXTPathClearButton" Content="TXTパス欄クリア" HorizontalAlignment="Right" VerticalAlignment="Top" Click="TXTClearButton_Click"/>
+                </StackPanel>
+
+                <ListBox x:Name ="TableList"  d:ItemsSource="{d:SampleData ItemCount=5}"
+                     Margin="10"
+                     Width="260"
+                     Height="180" SelectionMode="Multiple"/>
+
+                <StackPanel x:Name="spToDBPass" Visibility="Hidden">
+                    <TextBlock x:Name="tbxToDBPass" HorizontalAlignment="Center" Margin="0,10,0,0" TextWrapping="Wrap" Text="コピー先データベースのパスワード" VerticalAlignment="Top" Visibility="Visible"/>
+                    <PasswordBox x:Name="pbToDBPass" Width="120" PasswordChar="●" Visibility="Visible"/>
+                </StackPanel>
+
+                <StackPanel x:Name="spToDBSelect">
+                    <TextBlock x:Name="tbkToDBSelect" HorizontalAlignment="Center" Margin="0,10,0,0" TextWrapping="Wrap" Text="コピー先データベースファイルパス" VerticalAlignment="Top"/>
+                    <TextBox x:Name="tbxToDBFilePath" HorizontalAlignment="Center" TextWrapping="NoWrap" Text="" VerticalAlignment="Top" Width="324" IsEnabled="False" />
+                    <Button x:Name="DBToSelectButton" Content="DB選択" HorizontalAlignment="Center" VerticalAlignment="Top" Click="ToDBSelectButton_Click"/>
+                </StackPanel>
+
+                <Button x:Name="CopyExistButton" Content="テーブルコピー実行" HorizontalAlignment="Center" VerticalAlignment="Center" Click="CopyExistButton_Click" Margin="0,20,0,0"/>
+
+
+            </StackPanel>
+
+        </StackPanel>
+        
+    </Grid>
+    
+</Window>
