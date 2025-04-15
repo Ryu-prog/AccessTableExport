@@ -19,49 +19,125 @@ namespace AccessTableExport
     {
         private const string Provider = "Microsoft.ACE.OLEDB.12.0";
 
-            public void ExportTable(string sourceDbPath, string dbPass, List<string> copyTableList, string destinationDbPath, string toDBPass = "")
+        private const string PARAM = "@criterion";
+
+        private string ConnectionString;
+
+        public AccessControl(string sheetInfoPath, string passWord = "")
         {
+            OleDbConnectionStringBuilder builder = new System.Data.OleDb.OleDbConnectionStringBuilder();
+            builder["Provider"] = Provider;
+            builder["Data Source"] = sheetInfoPath;
 
-            string universalConnectionString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source={0};Jet OLEDB:Database Password={1};";
+            if (!string.IsNullOrEmpty(passWord))
+            {
+                builder["Jet OLEDB:Database Password"] = passWord;
+            }
+            this.ConnectionString = builder.ConnectionString;
+        }
 
-            //コピー元からテーブルを取得する処理と
-            //コピー先にInsertする処理を分ける
+        private void INSERTDataTable(string query, OleDbConnection oDConnection, OleDbTransaction oDTransaction, DataTable dtInsert)
+        {
+            foreach (DataRow drInsert in dtInsert.Rows)
+            {
+                using (OleDbCommand insertCommand = new OleDbCommand(query, oDConnection))
+                {
+                    insertCommand.Transaction = oDTransaction;
+                    foreach (DataColumn column in dtInsert.Columns)
+                    {
+                        insertCommand.Parameters.AddWithValue("@" + column.ColumnName, drInsert[column]);
+                    }
+                    insertCommand.ExecuteNonQuery();
+                }
+            }
+        }
 
+        private DataTable DtSELECT(string query, string criterion = "")
+        {
+            DataTable dtSelect = new DataTable();
+            using (var conn = new System.Data.OleDb.OleDbConnection(this.ConnectionString))
+            {
+                //ココにデータベースにアクセスするコードを書く
+                // Accessのデータベースファイルに接続する
+                conn.Open();
+
+                // OleDbCommandインスタンスを生成する
+                using (OleDbCommand command = new OleDbCommand(query, conn))
+                {
+                    // OleDbDataAdapterインスタンスを生成する
+                    using (OleDbDataAdapter adapter = new OleDbDataAdapter(command))
+                    {
+                        // パラメータを追加する
+                        if (criterion != "")
+                        {
+                            command.Parameters.AddWithValue(PARAM, criterion);
+                        }
+
+                        // データテーブルにデータを格納する
+                        adapter.Fill(dtSelect);
+                    }
+                }
+                // Accessのデータベースファイルの接続を閉じる
+                conn.Close();
+            }
+
+            return dtSelect;
+        }
+
+        public DataSet GetDataSet(List<string> copyTableList)
+        {
             //コピーデータセット
             DataSet dsInsert = new DataSet();
 
             // コピー元のデータベースからデータをデータセットとして取得
-            using (OleDbConnection sourceConnection = new OleDbConnection(String.Format(universalConnectionString, sourceDbPath, dbPass)))
+
+            //コピー元からテーブルを取得する処理
+            foreach (string copyTable in copyTableList)
             {
-                sourceConnection.Open();
+                string selectQuery = $"SELECT * FROM {copyTable}"; // テーブル名を指定
 
-                //コピー元からテーブルを取得する処理
-                foreach (string copyTable in copyTableList) {
-                    string selectQuery = $"SELECT * FROM {copyTable}"; // テーブル名を指定
+                DataTable dataTable = new DataTable();
 
-                    using (OleDbCommand selectCommand = new OleDbCommand(selectQuery, sourceConnection)) {
-                        using (OleDbDataAdapter adapter = new OleDbDataAdapter(selectCommand))
-                        {
-                            DataTable dataTable = new DataTable(copyTable);
-                            adapter.Fill(dataTable);
-                            dsInsert.Tables.Add(dataTable);
-                        }
-                    }
-                }
+                dataTable = this.DtSELECT(selectQuery);
 
-                sourceConnection.Close();
+                dataTable.TableName = copyTable;
 
+                dsInsert.Tables.Add(dataTable);
+
+                //using (OleDbCommand selectCommand = new OleDbCommand(selectQuery, sourceConnection))
+                //{
+                //    using (OleDbDataAdapter adapter = new OleDbDataAdapter(selectCommand))
+                //    {
+                //        DataTable dataTable = new DataTable(copyTable);
+                //        adapter.Fill(dataTable);
+                //        dsInsert.Tables.Add(dataTable);
+                //    }
+                //}
             }
 
+            return dsInsert;
+
+        }
+
+        private void DELETETable(string tableName, OleDbConnection oDConnection, ref OleDbTransaction oDTransaction)
+        {
+            //INSERT先のテーブルを全行削除
+            using (OleDbCommand deleteCommand = new OleDbCommand($"DELETE FROM [{tableName}];", oDConnection))
+            {
+                deleteCommand.Transaction = oDTransaction;
+                deleteCommand.ExecuteNonQuery();
+            }
+        }
+
+        public List<string> ExportTable(DataSet dsInsert)
+        {
             //コピー先にInsertする処理
 
-            //sql成否フラグ
-            bool isSuccess = false;
-
-            string destinationConnectionString = String.Format(universalConnectionString, destinationDbPath, dbPass);
+            //結果メッセージ
+            List<string> stResult = new List<string>();
 
             // コピー先のデータベースにデータを挿入
-            using (OleDbConnection destinationConnection = new OleDbConnection(destinationConnectionString))
+            using (OleDbConnection destinationConnection = new OleDbConnection(this.ConnectionString))
             {
                 //トランザクション開始
                 destinationConnection.Open();
@@ -73,11 +149,7 @@ namespace AccessTableExport
                     foreach (DataTable dtInsert in dsInsert.Tables)
                     {
                         //INSERT先のテーブルを全行削除
-                        using (OleDbCommand deleteCommand = new OleDbCommand($"DELETE FROM [{dtInsert.TableName}];", destinationConnection))
-                        {
-                            deleteCommand.Transaction = TRN;
-                            deleteCommand.ExecuteNonQuery();
-                        }
+                        this.DELETETable(dtInsert.TableName, destinationConnection, ref TRN);
 
                         // カラム名を自動生成
                         IEnumerable<DataColumn> dcInsert = dtInsert.Columns.Cast<DataColumn>();
@@ -88,43 +160,57 @@ namespace AccessTableExport
                         //INSERT文を生成
                         string insertQueryTemplate = $"INSERT INTO {dtInsert.TableName} ({columns}) VALUES ({parameters})";
 
-                        foreach (DataRow drInsert in dtInsert.Rows)
-                        {
-                            using (OleDbCommand insertCommand = new OleDbCommand(insertQueryTemplate, destinationConnection))
-                            {
-                                insertCommand.Transaction = TRN;
-                                foreach (DataColumn column in dtInsert.Columns)
-                                {
-                                    insertCommand.Parameters.AddWithValue("@" + column.ColumnName, drInsert[column]);
-                                }
-                                insertCommand.ExecuteNonQuery();
-                            }
-                        }
+                        this.INSERTDataTable(insertQueryTemplate, destinationConnection, TRN, dtInsert);
+
                     }
 
                     //トランザクションをコミット
                     TRN.Commit();
 
-                    isSuccess = true;
+                    ////データベースの最適化実行
+                    //string tempDbPath = destinationDbPath + "_temp";
+                    //string tempConnectionString = $"Provider=Microsoft.ACE.OLEDB.12.0;Data Source={tempDbPath};Jet OLEDB:Database Password={dbPass};";
+
+                    //OleDbConnection tempConnection = new OleDbConnection(tempConnectionString);
+
+                    ////// JRO.JetEngineを使用してデータベースをコンパクトおよび修復
+                    ////JRO.JetEngine jetEngine = new JRO.JetEngine();
+                    ////jetEngine.CompactDatabase(destinationConnectionString, tempConnectionString);
+
+                    //CompactDatabaseHelper.JetCompact(IntPtr.Zero, destinationConnectionString, tempConnectionString, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+
+                    //// 元のデータベースを削除し、テンポラリデータベースをリネーム
+                    //System.IO.File.Delete(destinationDbPath);
+                    //System.IO.File.Move(tempDbPath, destinationDbPath);
 
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show(ex.Message + Environment.NewLine + ex.ToString(), "エラー");
-                    MessageBox.Show("ロールバック", "コピー中にエラーが発生しました。ロールバックします。");
+                    stResult.Add(ex.Message + Environment.NewLine + ex.ToString());
+                    stResult.Add("コピー中にエラーが発生しました。ロールバックします。");
+
+                    //MessageBox.Show(ex.Message + Environment.NewLine + ex.ToString(), "エラー");
+                    //MessageBox.Show("ロールバック", "コピー中にエラーが発生しました。ロールバックします。");
 
                     try
                     {
                         TRN.Rollback();
-                        MessageBox.Show("ロールバック", "ロールバック成功");
+                        stResult.Add("ロールバック成功");
+
+                        //MessageBox.Show("ロールバック", "ロールバック成功");
                     }
                     catch (Exception ex2)
                     {
                         // This catch block will handle any errors that may have occurred
                         // on the server that would cause the rollback to fail, such as
                         // a closed connection.
-                        MessageBox.Show(ex2.Message + Environment.NewLine + ex2.ToString(), "エラー");
-                        MessageBox.Show("失敗", "ロールバック中にエラーが発生しました。");
+                        //MessageBox.Show(ex2.Message + Environment.NewLine + ex2.ToString(), "エラー");
+                        //MessageBox.Show("失敗", "ロールバック中にエラーが発生しました。");
+
+                        stResult.Add(ex2.Message + Environment.NewLine + ex2.ToString());
+                        stResult.Add("ロールバック中にエラーが発生しました。");
+
+
                     }
 
                 }
@@ -133,20 +219,13 @@ namespace AccessTableExport
                     destinationConnection.Close();
                 }
             }
-
-            if (isSuccess) MessageBox.Show("正常終了", "正常終了");
-
+            return stResult;
         }
 
-        public object[] GetTableNames(string SheetInfoPath, string DBPass) {
-            var builder = new System.Data.OleDb.OleDbConnectionStringBuilder();
-            builder["Provider"] = Provider;
-            builder["Data Source"] = SheetInfoPath;
-            builder["Jet OLEDB:Database Password"] = DBPass;
-
+        public object[] GetTableNames() {
             DataTable dt;
 
-            using (var conn = new System.Data.OleDb.OleDbConnection(builder.ConnectionString))
+            using (var conn = new System.Data.OleDb.OleDbConnection(this.ConnectionString))
             {
                 conn.Open();
                 dt = conn.GetSchema("Tables");
@@ -157,7 +236,11 @@ namespace AccessTableExport
 
             object[] TableNames = TypeTable.AsEnumerable().Select(i => i["TABLE_NAME"]).ToArray();
 
-            return TableNames;
+            string[] stTableNames = new string[TableNames.Length];
+
+            TableNames.CopyTo(stTableNames, 0);
+
+            return stTableNames;
         }
     }
 }

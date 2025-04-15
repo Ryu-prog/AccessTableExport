@@ -78,8 +78,8 @@ namespace AccessTableExport
 
         private void setTableList() {
 
-            AccessControl AccessTable = new AccessControl();
-            object[] tableNames = AccessTable.GetTableNames(this.tbxDBFilePath.Text, this.pbDBPass.Password);
+            AccessControl AccessTable = new AccessControl(this.tbxDBFilePath.Text, this.pbDBPass.Password);
+            object[] tableNames = AccessTable.GetTableNames();
 
             foreach (object tableName in tableNames) {
                 this.TableList.Items.Add(tableName.ToString());
@@ -164,9 +164,13 @@ namespace AccessTableExport
 
             //string[] CopyTableLists = this.TableList.SelectedItems;
 
-            AccessControl AccessTable = new AccessControl();
+            AccessControl CopyFromAccess = new AccessControl(this.tbxDBFilePath.Text, this.pbDBPass.Password);
 
-            AccessTable.ExportTable(this.tbxDBFilePath.Text, this.pbDBPass.Password, CopyTableList, this.tbxToDBFilePath.Text);
+            System.Data.DataSet dsInsert = CopyFromAccess.GetDataSet(CopyTableList);
+
+            AccessControl CopyToAccess = new AccessControl(this.tbxToDBFilePath.Text, this.pbDBPass.Password);
+
+            CopyToAccess.ExportTable(dsInsert);
 
            
         }
