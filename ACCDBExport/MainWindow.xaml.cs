@@ -30,6 +30,13 @@ namespace AccessTableExport
                 this.pbDBPass.Password = Properties.Settings.Default.DBPassword;
             }
 
+            if (string.IsNullOrEmpty(Properties.Settings.Default.ToDBPassword) == false)
+            {
+                this.pbToDBPass.Password = Properties.Settings.Default.ToDBPassword;
+            }
+
+            this.cbxSamePass.IsChecked = Properties.Settings.Default.IsSamePass;
+
             if (string.IsNullOrEmpty(Properties.Settings.Default.TableListPath) == false && System.IO.Path.Exists(Properties.Settings.Default.TableListPath)) {
                 this.tblTXTPath.Text = Properties.Settings.Default.TableListPath;
             }
@@ -44,6 +51,8 @@ namespace AccessTableExport
         {
             Properties.Settings.Default.DBFolder = this.tbxDBFilePath.Text;
             Properties.Settings.Default.DBPassword = this.pbDBPass.Password;
+            Properties.Settings.Default.ToDBPassword = this.pbToDBPass.Password;
+            Properties.Settings.Default.IsSamePass = (bool)this.cbxSamePass.IsChecked;
             Properties.Settings.Default.TableListPath = this.tblTXTPath.Text;
             Properties.Settings.Default.ToDBFolder = this.tbxToDBFilePath.Text;
             Properties.Settings.Default.Save();
@@ -154,6 +163,14 @@ namespace AccessTableExport
 
         private void CopyExistButton_Click(object sender, RoutedEventArgs e)
         {
+            string fromDBPath = this.pbDBPass.Password;
+            string toDBPath;
+            if ((bool)this.cbxSamePass.IsChecked) {
+                toDBPath = fromDBPath;
+            } else {
+                toDBPath = this.pbToDBPass.Password;
+            }
+
             //コピー対象のテーブルをまとめる
             List<string> CopyTableList = new List<string>();
 
@@ -164,15 +181,25 @@ namespace AccessTableExport
 
             //string[] CopyTableLists = this.TableList.SelectedItems;
 
-            AccessControl CopyFromAccess = new AccessControl(this.tbxDBFilePath.Text, this.pbDBPass.Password);
+            AccessControl CopyFromAccess = new AccessControl(fromDBPath, this.pbDBPass.Password);
 
             System.Data.DataSet dsInsert = CopyFromAccess.GetDataSet(CopyTableList);
 
-            AccessControl CopyToAccess = new AccessControl(this.tbxToDBFilePath.Text, this.pbDBPass.Password);
+            AccessControl CopyToAccess = new AccessControl(toDBPath, this.pbToDBPass.Password);
 
             CopyToAccess.ExportTable(dsInsert);
 
            
+        }
+
+        private void cbxSamePass_Checked(object sender, RoutedEventArgs e)
+        {
+            this.pbToDBPass.IsEnabled = false;
+        }
+
+        private void cbxSamePass_Unchecked(object sender, RoutedEventArgs e)
+        {
+            this.pbToDBPass.IsEnabled = true;
         }
     }
 }

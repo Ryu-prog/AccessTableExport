@@ -51,8 +51,7 @@ namespace AccessTableExport
                 }
             }
         }
-
-        private DataTable DtSELECT(string query, string criterion = "")
+        private DataTable DtLoadReader(string query, string criterion = "")
         {
             DataTable dtSelect = new DataTable();
             using (var conn = new System.Data.OleDb.OleDbConnection(this.ConnectionString))
@@ -64,17 +63,14 @@ namespace AccessTableExport
                 // OleDbCommandインスタンスを生成する
                 using (OleDbCommand command = new OleDbCommand(query, conn))
                 {
-                    // OleDbDataAdapterインスタンスを生成する
-                    using (OleDbDataAdapter adapter = new OleDbDataAdapter(command))
+                    // パラメータを追加する
+                    if (criterion != "")
                     {
-                        // パラメータを追加する
-                        if (criterion != "")
-                        {
-                            command.Parameters.AddWithValue(PARAM, criterion);
-                        }
+                        command.Parameters.AddWithValue(PARAM, criterion);
+                    }
 
-                        // データテーブルにデータを格納する
-                        adapter.Fill(dtSelect);
+                    using (OleDbDataReader reader = command.ExecuteReader()) {
+                        dtSelect.Load(reader);
                     }
                 }
                 // Accessのデータベースファイルの接続を閉じる
@@ -94,11 +90,11 @@ namespace AccessTableExport
             //コピー元からテーブルを取得する処理
             foreach (string copyTable in copyTableList)
             {
-                string selectQuery = $"SELECT * FROM {copyTable}"; // テーブル名を指定
+                string selectQuery = $"SELECT * FROM [{copyTable}]"; // テーブル名を指定
 
                 DataTable dataTable = new DataTable();
 
-                dataTable = this.DtSELECT(selectQuery);
+                dataTable = this.DtLoadReader(selectQuery);
 
                 dataTable.TableName = copyTable;
 
@@ -158,7 +154,7 @@ namespace AccessTableExport
                         string parameters = string.Join(", ", dcInsert.Select(c => "@" + c.ColumnName));
 
                         //INSERT文を生成
-                        string insertQueryTemplate = $"INSERT INTO {dtInsert.TableName} ({columns}) VALUES ({parameters})";
+                        string insertQueryTemplate = $"INSERT INTO [{dtInsert.TableName}] ({columns}) VALUES ({parameters})";
 
                         this.INSERTDataTable(insertQueryTemplate, destinationConnection, TRN, dtInsert);
 
