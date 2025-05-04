@@ -1,5 +1,7 @@
 ﻿using Microsoft.Win32;
 using System.ComponentModel;
+using System.Data;
+using System.Data.OleDb;
 using System.IO;
 using System.Text;
 using System.Windows;
@@ -163,12 +165,12 @@ namespace AccessTableExport
 
         private void CopyExistButton_Click(object sender, RoutedEventArgs e)
         {
-            string fromDBPath = this.pbDBPass.Password;
-            string toDBPath;
+            string fromDBPass = this.pbDBPass.Password;
+            string toDBPass;
             if ((bool)this.cbxSamePass.IsChecked) {
-                toDBPath = fromDBPath;
+                toDBPass = fromDBPass;
             } else {
-                toDBPath = this.pbToDBPass.Password;
+                toDBPass = this.pbToDBPass.Password;
             }
 
             //コピー対象のテーブルをまとめる
@@ -181,15 +183,59 @@ namespace AccessTableExport
 
             //string[] CopyTableLists = this.TableList.SelectedItems;
 
-            AccessControl CopyFromAccess = new AccessControl(fromDBPath, this.pbDBPass.Password);
+            AccessControl CopyFromAccess = new AccessControl(this.tbxDBFilePath.Text, fromDBPass);
 
             System.Data.DataSet dsInsert = CopyFromAccess.GetDataSet(CopyTableList);
 
-            AccessControl CopyToAccess = new AccessControl(toDBPath, this.pbToDBPass.Password);
+            AccessControl CopyToAccess = new AccessControl(this.tbxToDBFilePath.Text, toDBPass);
 
-            CopyToAccess.ExportTable(dsInsert);
+            // コピー先のデータベースにデータを挿入
+            using (OleDbConnection destinationConnection = new OleDbConnection(CopyToAccess.ConnectionString))
+            {
+                // コピー先のテーブル名一覧を取得
 
-           
+                //トランザクション開始
+                destinationConnection.Open();
+                OleDbTransaction TRN = destinationConnection.BeginTransaction();
+                try
+                {
+                    //sqlで更新する方法
+                    foreach (DataTable dtInsert in dsInsert.Tables)
+                    {
+                        CopyToAccess.ExportTable(dtInsert, destinationConnection, TRN);
+                    }
+
+                    // コミット
+                    TRN.Commit();
+
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(ex.Message + Environment.NewLine + ex.ToString(), "エラー");
+                    MessageBox.Show("ロールバック", "コピー中にエラーが発生しました。ロールバックします。");
+
+                    try
+                    {
+                        TRN.Rollback();
+
+                        MessageBox.Show("ロールバック", "ロールバック成功");
+                    }
+                    catch (Exception ex2)
+                    {
+                        // This catch block will handle any errors that may have occurred
+                        // on the server that would cause the rollback to fail, such as
+                        // a closed connection.
+                        MessageBox.Show(ex2.Message + Environment.NewLine + ex2.ToString(), "エラー");
+                        MessageBox.Show("失敗", "ロールバック中にエラーが発生しました。");
+                    }
+                }
+                finally
+                {
+                    destinationConnection.Close();
+                }
+
+            }
+            MessageBox.Show("実行完了", "実行完了");
         }
 
         private void cbxSamePass_Checked(object sender, RoutedEventArgs e)
